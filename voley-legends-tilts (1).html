@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Volleyball Legends 3D - VBL Edition</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { overflow: hidden; background: #0f172a; color: white; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 18px; }
+        .top-bar { display: flex; justify-content: space-between; align-items: flex-start; }
+        .hud-box { background: rgba(15, 23, 42, 0.85); border: 2px solid #38bdf8; border-radius: 10px; padding: 10px 18px; }
+        .style-box { border-color: #a855f7; text-align: right; max-width: 350px; }
+        .badge { font-size: 11px; font-weight: bold; background: #7e22ce; padding: 2px 7px; border-radius: 4px; display: inline-block; margin-bottom: 4px; }
+        .style-title { font-size: 22px; font-weight: 900; color: #facc15; }
+        .style-desc { font-size: 12px; color: #cbd5e1; margin-top: 3px; }
+        
+        .center-hud { align-self: center; text-align: center; }
+        #charge-wrap { width: 260px; height: 16px; background: rgba(0,0,0,0.75); border: 2px solid #fff; border-radius: 8px; overflow: hidden; display: none; margin: 6px auto; }
+        #charge-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #9333ea, #e879f9); }
+        #banner { font-size: 22px; font-weight: 900; color: #facc15; text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity 0.2s; }
+
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        #crosshair.locked { border-color: #38bdf8; background: rgba(56, 189, 248, 0.5); width: 12px; height: 12px; }
+
+        .bottom-bar { display: flex; justify-content: space-between; align-items: flex-end; }
+        .controls { background: rgba(15, 23, 42, 0.85); padding: 10px 14px; border-radius: 10px; font-size: 12px; line-height: 1.6; border: 1px solid rgba(255,255,255,0.15); }
+        .k { background: #334155; padding: 1px 6px; border-radius: 4px; font-weight: bold; color: #38bdf8; border: 1px solid #475569; }
+        .btn-menu { pointer-events: auto; background: #ef4444; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        #menu { position: absolute; inset: 0; background: rgba(9, 13, 24, 0.94); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; pointer-events: auto; padding: 20px; }
+        #menu h1 { font-size: 36px; font-weight: 900; color: #38bdf8; margin-bottom: 6px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; width: 100%; max-width: 1000px; margin: 18px 0; }
+        .card { background: #1e293b; border: 2px solid #334155; border-radius: 10px; padding: 12px; cursor: pointer; transition: 0.15s; }
+        .card:hover { border-color: #38bdf8; transform: translateY(-2px); }
+        .card.selected { border-color: #facc15; background: #292524; }
+        .card-head { display: flex; justify-content: space-between; font-weight: 800; font-size: 17px; margin-bottom: 5px; }
+        .card-desc { font-size: 12px; color: #cbd5e1; line-height: 1.35; }
+        #btn-play { background: #10b981; color: #052e16; border: none; padding: 14px 40px; font-size: 18px; font-weight: 900; border-radius: 10px; cursor: pointer; }
+        #btn-play:hover { background: #34d399; }
+    </style>
+</head>
+<body>
+
+<div id="crosshair"></div>
+
+<div id="ui">
+    <div class="top-bar">
+        <div class="hud-box">
+            <div style="font-size:12px; color:#94a3b8;">TOQUES / RALLY</div>
+            <div style="font-size:28px; font-weight:900; color:#38bdf8;" id="hits">0</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Shift-Lock: <b id="sl-txt" style="color:#fff;">OFF</b> | Zoom: <b id="zoom-txt">8.5</b></div>
+            <div style="font-size:11px; color:#facc15; margin-top:2px;">Tilt Aéreo: <b id="tilt-txt">NEUTRO</b></div>
+        </div>
+        <div class="hud-box style-box">
+            <div class="badge" id="hud-tag">SECRET</div>
+            <div class="style-title" id="hud-name">Jinko</div>
+            <div class="style-desc" id="hud-desc">Curveball (A/D en aire) y Boomerang (S).</div>
+        </div>
+    </div>
+
+    <div class="center-hud">
+        <div id="banner">¡REMATE!</div>
+        <div id="charge-label" style="font-size:12px; font-weight:bold; display:none;">CARGA SUPER SPIKE TSH: 0%</div>
+        <div id="charge-wrap"><div id="charge-fill"></div></div>
+    </div>
+
+    <div class="bottom-bar">
+        <div class="controls">
+            <div><span class="k">WASD</span> Mover (Suelo) / Tilt (Aire) &nbsp;|&nbsp; <span class="k">ESPACIO</span> Saltar (Inercia fija) &nbsp;|&nbsp; <span class="k">SHIFT</span> Shift-Lock &nbsp;|&nbsp; <span class="k">SCROLL</span> Zoom</div>
+            <div><span class="k">CLIC IZQ</span> Bump (Suelo) / Spike + Tilt (Aire) &nbsp;|&nbsp; <span class="k">Q</span> Set (Suelo) / Block + Tilt (Aire) &nbsp;|&nbsp; <span class="k">E</span> Jump Set + Tilt (Aire)</div>
+            <div><span class="k">CTRL</span> Dive 360° &nbsp;|&nbsp; <span class="k">R</span> Especial (Kazana/Admin) &nbsp;|&nbsp; <span class="k">T</span> Traer balón &nbsp;|&nbsp; <span class="k">1-7</span> Estilos</div>
+        </div>
+        <button class="btn-menu" id="btn-open-menu">ESTILOS (M)</button>
+    </div>
+</div>
+
+<div id="menu">
+    <h1>VOLLEY LEGENDS 3D</h1>
+    <p style="color:#94a3b8;">Elige tu estilo y haz clic en JUGAR para activar la cámara</p>
+    <div class="grid" id="grid"></div>
+    <button id="btn-play">JUGAR</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const STYLES = {
+    jinko:  { id: 'jinko',  name: 'Jinko',  tag: 'SECRET', color: '#10b981', spark: '#34d399', desc: 'Curveball (A/D en el aire al rematar) y Boomerang (S al rematar).', hitbox: 3.1, jump: 14.5, spike: 25, grav: -18, setH: 13.5 },
+    kazana: { id: 'kazana', name: 'Kazana', tag: 'SECRET', color: '#0ea5e9', spark: '#38bdf8', desc: 'Súper salto activable con [R] con aura y chispas azules, más gravedad extra al rematar.', hitbox: 3.1, jump: 14.5, superJump: 21.0, spike: 27, grav: -31, setH: 13.5 },
+    hidari: { id: 'hidari', name: 'Hidari', tag: 'SECRET', color: '#ef4444', spark: '#f87171', desc: 'Remate zurdo devastador con chispas rojas al golpear con la mano izquierda.', hitbox: 3.2, jump: 15.0, spike: 33, grav: -24, setH: 13.5 },
+    tsh:    { id: 'tsh',    name: 'TSH',    tag: 'SECRET', color: '#a855f7', spark: '#d8b4fe', desc: 'Carga hasta el 100% corriendo con [W] para liberar un Super Spike devastador con chispas moradas (salto normal).', hitbox: 3.1, jump: 14.5, spike: 25, superSpike: 37, grav: -20, superGrav: -33, setH: 13.5 },
+    encho:  { id: 'encho',  name: 'Encho',  tag: 'SECRET', color: '#f97316', spark: '#fb923c', desc: 'Hitbox amplia, set alto y la gravedad descendente más rápida (-38).', hitbox: 4.4, jump: 15.0, spike: 26, grav: -38, setH: 17.5 },
+    sanu:   { id: 'sanu',   name: 'Sanu',   tag: 'SECRET', color: '#14b8a6', spark: '#2dd4bf', desc: 'Giro corporal en el aire y cortes diagonales extremos (A/D) sin curvar el balón.', hitbox: 3.2, jump: 15.5, spike: 28, grav: -24, setH: 13.5 },
+    admin:  { id: 'admin',  name: 'Admin',  tag: 'ADMIN',  color: '#eab308', spark: '#fef08a', desc: 'Movimiento libre en el aire, teletransporte al balón con [R] y remate dorado máximo.', hitbox: 4.1, jump: 16.0, spike: 38, grav: -34, setH: 16.0 }
+};
+
+let curStyle = STYLES.jinko;
+let hits = 0;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- ESTADO DEL JUEGO ---
+const st = {
+    x: 0, y: 0, z: 10,
+    vx: 0, vy: 0, vz: 0,
+    onGround: true,
+    lockVx: 0, lockVz: 0,
+
+    yaw: 0,
+    pitch: 0.25,
+    camDist: 8.5,
+    shiftLock: false,
+    locked: false,
+
+    hbTimer: 0,
+    hbType: 'spike', // 'bump' | 'spike' | 'set' | 'block' | 'jumpset'
+    animTimer: 0,
+    runCycle: 0,
+    facingYaw: 0,
+
+    // Tilts en el aire
+    tiltX: 0, // -1 (A izq) a +1 (D der)
+    tiltZ: 0, // +1 (W adelante) a -1 (S atrás)
+
+    diving: false,
+    diveTimer: 0,
+    diveCd: 0,
+    diveAngle: 0,
+
+    kazanaReady: false,
+    tshCharge: 0,
+    sanuSpin: 0,
+
+    bx: 0, by: 3.8, bz: 8.2,
+    bvx: 0, bvy: 4.5, bvz: 0,
+    bGrav: -16,
+    bCurveX: 0, bCurveZ: 0,
+    bBoomerang: false
+};
+
+const particles = [];
+function spawnSparks(x, y, z, col, n = 22, spd = 9) {
+    for (let i = 0; i < n; i++) {
+        particles.push({
+            x, y, z,
+            vx: (Math.random() - 0.5) * spd,
+            vy: (Math.random() - 0.15) * spd,
+            vz: (Math.random() - 0.5) * spd,
+            life: 0.45 + Math.random() * 0.35,
+            maxLife: 0.8,
+            color: col,
+            size: 0.16 + Math.random() * 0.12
+        });
+    }
+}
+
+const keys = {};
+
+document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+
+    if (e.key >= '1' && e.key <= '7') {
+        selectStyle(Object.keys(STYLES)[parseInt(e.key) - 1]);
+    }
+    if (e.code === 'KeyM') {
+        document.exitPointerLock();
+        document.getElementById('menu').style.display = 'flex';
+    }
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        st.shiftLock = !st.shiftLock;
+        document.getElementById('crosshair').classList.toggle('locked', st.shiftLock);
+        document.getElementById('sl-txt').innerText = st.shiftLock ? 'ON' : 'OFF';
+        document.getElementById('sl-txt').style.color = st.shiftLock ? '#38bdf8' : '#fff';
+    }
+    if (!st.locked) return;
+
+    // Salto (Espacio) con inercia fija (TSH tiene salto normal)
+    if (e.code === 'Space' && st.onGround && !st.diving && curStyle.id !== 'admin') {
+        let jp = curStyle.jump;
+        if (curStyle.id === 'kazana' && st.kazanaReady) {
+            jp = curStyle.superJump;
+            st.kazanaReady = false;
+            spawnSparks(st.x, st.y + 1, st.z, '#38bdf8', 35, 11);
+        }
+        st.vy = jp;
+        st.onGround = false;
+        st.lockVx = st.vx;
+        st.lockVz = st.vz;
+
+        if (curStyle.id === 'sanu') st.sanuSpin = Math.PI * 2;
+    }
+
+    // Q: Set en suelo / Block en aire
+    if (e.code === 'KeyQ') {
+        startHitbox(st.onGround ? 'set' : 'block');
+    }
+
+    // E: Jump Set / Tilt Set en aire
+    if (e.code === 'KeyE' && !st.onGround) {
+        startHitbox('jumpset');
+    }
+
+    // Ctrl: Dive 360°
+    if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !st.diving && st.diveCd <= 0 && curStyle.id !== 'admin') {
+        st.diving = true;
+        st.diveTimer = 0.55;
+        st.diveCd = 1.0;
+
+        const fwdX = -Math.sin(st.yaw), fwdZ = -Math.cos(st.yaw);
+        const rgtX = Math.cos(st.yaw), rgtZ = -Math.sin(st.yaw);
+        let dx = 0, dz = 0;
+        if (keys['KeyW']) { dx += fwdX; dz += fwdZ; }
+        if (keys['KeyS']) { dx -= fwdX; dz -= fwdZ; }
+        if (keys['KeyD']) { dx += rgtX; dz += rgtZ; }
+        if (keys['KeyA']) { dx -= rgtX; dz -= rgtZ; }
+        const len = Math.hypot(dx, dz);
+        if (len > 0) { dx /= len; dz /= len; }
+        else { dx = fwdX; dz = fwdZ; }
+
+        st.vx = dx * 16;
+        st.vz = dz * 16;
+        st.vy = 3.5;
+        st.onGround = false;
+        st.lockVx = st.vx;
+        st.lockVz = st.vz;
+        st.facingYaw = Math.atan2(-dx, -dz);
+        st.diveAngle = 0;
+    }
+
+    // R: Especial (Kazana / Admin)
+    if (e.code === 'KeyR') {
+        if (curStyle.id === 'kazana') {
+            st.kazanaReady = !st.kazanaReady;
+            if (st.kazanaReady) {
+                spawnSparks(st.x, st.y + 1.2, st.z, '#38bdf8', 25, 7);
+                showBanner('¡KAZANA AURA ACTIVA!', '#38bdf8');
+            }
+        } else if (curStyle.id === 'admin') {
+            spawnSparks(st.x, st.y + 1.2, st.z, '#facc15', 25, 8);
+            st.x = st.bx;
+            st.y = Math.max(0, st.by - 1.2);
+            st.z = st.bz + 0.8;
+            st.vx = 0; st.vy = 0; st.vz = 0;
+            spawnSparks(st.x, st.y + 1.2, st.z, '#facc15', 30, 10);
+            showBanner('TP AL BALÓN', '#facc15');
+        }
+    }
+
+    // T: Traer balón frente al jugador
+    if (e.code === 'KeyT') resetBall();
+});
+
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+document.addEventListener('mousedown', e => {
+    if (!st.locked) return;
+    if (e.button === 0) {
+        startHitbox(st.onGround ? 'bump' : 'spike');
+    }
+});
+
+document.addEventListener('wheel', e => {
+    if (!st.locked) return;
+    st.camDist = Math.max(3.2, Math.min(16.5, st.camDist + e.deltaY * 0.005));
+    document.getElementById('zoom-txt').innerText = st.camDist.toFixed(1);
+});
+
+document.addEventListener('mousemove', e => {
+    if (!st.locked) return;
+    st.yaw -= e.movementX * 0.0024;
+    st.pitch = Math.max(-0.25, Math.min(1.15, st.pitch + e.movementY * 0.0024));
+});
+
+document.addEventListener('pointerlockchange', () => {
+    st.locked = (document.pointerLockElement === canvas);
+});
+
+function resetBall() {
+    const fwdX = -Math.sin(st.yaw), fwdZ = -Math.cos(st.yaw);
+    st.bx = st.x + fwdX * 1.8;
+    st.by = 4.2;
+    st.bz = st.z + fwdZ * 1.8;
+    st.bvx = 0; st.bvy = 4.0; st.bvz = 0;
+    st.bGrav = -16;
+    st.bCurveX = 0; st.bCurveZ = 0;
+    st.bBoomerang = false;
+}
+
+function startHitbox(type) {
+    if (st.hbTimer > 0) return;
+    st.hbTimer = 0.5;
+    st.hbType = type;
+    st.animTimer = 0.35;
+}
+
+function getAirTilt() {
+    let tx = 0, tz = 0;
+    if (!st.onGround) {
+        if (keys['KeyW']) tz += 1;
+        if (keys['KeyS']) tz -= 1;
+        if (keys['KeyD']) tx += 1;
+        if (keys['KeyA']) tx -= 1;
+    }
+    return { tx, tz };
+}
+
+function checkHit() {
+    const dx = st.bx - st.x;
+    const dy = st.by - (st.y + 1.5);
+    const dz = st.bz - st.z;
+    const dist = Math.hypot(dx, dy, dz);
+
+    // Dive 360° eleva el balón
+    if (st.diving && dist <= curStyle.hitbox + 0.5) {
+        st.bvx = (Math.random() - 0.5) * 2;
+        st.bvy = 15.5;
+        st.bvz = -2.5;
+        st.bGrav = -18;
+        st.bCurveX = 0; st.bCurveZ = 0;
+        st.bBoomerang = false;
+        st.diving = false;
+        spawnSparks(st.bx, st.by, st.bz, '#38bdf8', 18, 6);
+        showBanner('¡DIVE SALVADA!', '#38bdf8');
+        addHit();
+        return;
+    }
+
+    if (st.hbTimer > 0 && dist <= curStyle.hitbox) {
+        st.hbTimer = 0;
+        st.bCurveX = 0; st.bCurveZ = 0;
+        st.bBoomerang = false;
+
+        const fwdX = -Math.sin(st.yaw), fwdZ = -Math.cos(st.yaw);
+        const rgtX = Math.cos(st.yaw), rgtZ = -Math.sin(st.yaw);
+        const { tx, tz } = getAirTilt();
+
+        // 1. BUMP / TOSS (Clic Izq en suelo)
+        if (st.hbType === 'bump') {
+            st.bvx = fwdX * 2.5;
+            st.bvy = 14.5;
+            st.bvz = fwdZ * 2.5;
+            st.bGrav = -18;
+            spawnSparks(st.bx, st.by, st.bz, '#38bdf8', 12, 4);
+            showBanner('BUMP / TOSS', '#38bdf8');
+            addHit();
+            return;
+        }
+
+        // 2. SET CERCANO (Q en suelo)
+        if (st.hbType === 'set') {
+            st.bvx = fwdX * 1.3;
+            st.bvy = curStyle.setH;
+            st.bvz = fwdZ * 1.3;
+            st.bGrav = -18;
+            spawnSparks(st.bx, st.by, st.bz, '#ffffff', 14, 4);
+            showBanner('SET CERCANO', '#ffffff');
+            addHit();
+            return;
+        }
+
+        // 3. BLOCK + TILT (Q en aire)
+        if (st.hbType === 'block') {
+            let bDirX = fwdX + rgtX * (tx * 0.55);
+            let bDirZ = fwdZ + rgtZ * (tx * 0.55);
+            let bDown = tz > 0 ? -15 : (tz < 0 ? -5 : -10);
+            const len = Math.hypot(bDirX, bDirZ) || 1;
+            st.bvx = (bDirX / len) * 11;
+            st.bvy = bDown;
+            st.bvz = (bDirZ / len) * 11;
+            st.bGrav = -22;
+            spawnSparks(st.bx, st.by, st.bz, '#facc15', 20, 7);
+            showBanner(tz > 0 ? '¡KILL BLOCK (TILT W)!' : '¡BLOQUEO!', '#facc15');
+            addHit();
+            return;
+        }
+
+        // 4. JUMP SET / TILT SET (E en aire)
+        if (st.hbType === 'jumpset') {
+            let sx = fwdX * 0.35 + fwdX * (tz * 0.9) + rgtX * (tx * 0.95);
+            let sz = fwdZ * 0.35 + fwdZ * (tz * 0.9) + rgtZ * (tx * 0.95);
+            const len = Math.hypot(sx, sz);
+            if (len > 0.05) { sx = (sx / len) * 9.5; sz = (sz / len) * 9.5; }
+            st.bvx = sx;
+            st.bvy = curStyle.setH - 0.8;
+            st.bvz = sz;
+            st.bGrav = -18;
+            spawnSparks(st.bx, st.by, st.bz, '#a855f7', 16, 5);
+            let label = 'JUMP SET';
+            if (tz > 0) label = 'TILT SET ADELANTE (W)';
+            else if (tz < 0) label = 'TILT SET ATRÁS (S)';
+            else if (tx < 0) label = 'TILT SET IZQUIERDA (A)';
+            else if (tx > 0) label = 'TILT SET DERECHA (D)';
+            showBanner(label, '#c084fc');
+            addHit();
+            return;
+        }
+
+        // 5. SPIKE / REMATE + TILTS (Clic Izq en aire)
+        let pwr = curStyle.spike;
+        let grav = curStyle.grav;
+        let dirX = fwdX, dirZ = fwdZ;
+        let dirY = -0.34;
+        let customBanner = '';
+
+        // TSH Super Spike al 100% de carga
+        let tshSuper = false;
+        if (curStyle.id === 'tsh' && st.tshCharge >= 100) {
+            tshSuper = true;
+            pwr = curStyle.superSpike;
+            grav = curStyle.superGrav;
+            st.tshCharge = 0;
+            updateTSH();
+            spawnSparks(st.bx, st.by, st.bz, '#c084fc', 45, 15);
+            customBanner = '¡TSH SUPER SPIKE 100%!';
+        }
+
+        // Aplicar Tilts estándar de VBL en el aire
+        if (tz > 0) {
+            // Tilt W: Remate picado corto hacia abajo
+            dirY = -0.78;
+            grav -= 10;
+            if (!customBanner) customBanner = 'TILT SPIKE PICADO (W)';
+        } else if (tz < 0 && curStyle.id !== 'jinko') {
+            // Tilt S: Remate profundo hacia el fondo
+            dirY = -0.08;
+            pwr *= 1.08;
+            if (!customBanner) customBanner = 'TILT SPIKE PROFUNDO (S)';
+        }
+
+        if (tx !== 0 && curStyle.id !== 'jinko' && curStyle.id !== 'sanu') {
+            dirX += rgtX * (tx * 0.48);
+            dirZ += rgtZ * (tx * 0.48);
+            if (!customBanner) customBanner = tx < 0 ? 'TILT SPIKE IZQUIERDA (A)' : 'TILT SPIKE DERECHA (D)';
+        }
+
+        // Habilidades especiales de cada estilo
+        if (curStyle.id === 'jinko') {
+            if (tx < 0) {
+                dirX -= rgtX * 0.35; dirZ -= rgtZ * 0.35;
+                st.bCurveX = rgtX * 26; st.bCurveZ = rgtZ * 26;
+                customBanner = 'JINKO: CURVEBALL IZQ (A)';
+            } else if (tx > 0) {
+                dirX += rgtX * 0.35; dirZ += rgtZ * 0.35;
+                st.bCurveX = -rgtX * 26; st.bCurveZ = -rgtZ * 26;
+                customBanner = 'JINKO: CURVEBALL DER (D)';
+            }
+            if (tz < 0) {
+                st.bBoomerang = true;
+                dirY = 0.12;
+                customBanner = 'JINKO: BOOMERANG (S)';
+            }
+        } else if (curStyle.id === 'hidari') {
+            spawnSparks(st.bx, st.by, st.bz, '#ef4444', 42, 14);
+            customBanner = '¡REMATE ZURDO HIDARI!';
+        } else if (curStyle.id === 'sanu') {
+            if (tx !== 0) {
+                dirX += rgtX * (tx * 1.05);
+                dirZ += rgtZ * (tx * 1.05);
+                customBanner = 'SANU: CORTE DIAGONAL EXTREMO';
+            }
+        } else if (curStyle.id === 'admin') {
+            spawnSparks(st.bx, st.by, st.bz, '#facc15', 50, 16);
+            customBanner = '¡REMATE DORADO ADMIN!';
+        }
+
+        if (!tshSuper && curStyle.id !== 'hidari' && curStyle.id !== 'admin') {
+            spawnSparks(st.bx, st.by, st.bz, curStyle.spark, 24, 9);
+        }
+        if (customBanner) showBanner(customBanner, curStyle.spark);
+
+        const len = Math.hypot(dirX, dirY, dirZ) || 1;
+        st.bvx = (dirX / len) * pwr;
+        st.bvy = (dirY / len) * pwr;
+        st.bvz = (dirZ / len) * pwr;
+        st.bGrav = grav;
+        addHit();
+    }
+}
+
+function addHit() {
+    hits++;
+    document.getElementById('hits').innerText = hits;
+}
+
+// --- MOTOR 3D AUTOCONTENIDO (SIN PARPADEO) ---
+function projectPoint(wx, wy, wz, camX, camY, camZ, fwd, rgt, up, fovScale) {
+    const dx = wx - camX;
+    const dy = wy - camY;
+    const dz = wz - camZ;
+
+    const cz = dx * fwd.x + dy * fwd.y + dz * fwd.z;
+    const cx = dx * rgt.x + dy * rgt.y + dz * rgt.z;
+    const cy = dx * up.x + dy * up.y + dz * up.z;
+
+    if (cz <= 0.15) return null;
+    const sx = canvas.width * 0.5 + (cx / cz) * fovScale;
+    const sy = canvas.height * 0.5 - (cy / cz) * fovScale;
+    return { x: sx, y: sy, z: cz, scale: fovScale / cz };
+}
+
+function clipAndDrawPoly(pts3D, fillStyle, strokeStyle, lineWidth, camX, camY, camZ, fwd, rgt, up, fovScale) {
+    const near = 0.2;
+    const camPts = pts3D.map(p => {
+        const dx = p[0] - camX, dy = p[1] - camY, dz = p[2] - camZ;
+        return {
+            cx: dx * rgt.x + dy * rgt.y + dz * rgt.z,
+            cy: dx * up.x + dy * up.y + dz * up.z,
+            cz: dx * fwd.x + dy * fwd.y + dz * fwd.z
+        };
+    });
+
+    const clipped = [];
+    for (let i = 0; i < camPts.length; i++) {
+        const a = camPts[i];
+        const b = camPts[(i + 1) % camPts.length];
+        const aIn = a.cz >= near;
+        const bIn = b.cz >= near;
+
+        if (aIn && bIn) {
+            clipped.push(b);
+        } else if (aIn && !bIn) {
+            const t = (near - a.cz) / (b.cz - a.cz);
+            clipped.push({ cx: a.cx + (b.cx - a.cx) * t, cy: a.cy + (b.cy - a.cy) * t, cz: near });
+        } else if (!aIn && bIn) {
+            const t = (near - a.cz) / (b.cz - a.cz);
+            clipped.push({ cx: a.cx + (b.cx - a.cx) * t, cy: a.cy + (b.cy - a.cy) * t, cz: near });
+            clipped.push(b);
+        }
+    }
+
+    if (clipped.length < 3) return;
+    ctx.beginPath();
+    for (let i = 0; i < clipped.length; i++) {
+        const p = clipped[i];
+        const sx = canvas.width * 0.5 + (p.cx / p.cz) * fovScale;
+        const sy = canvas.height * 0.5 - (p.cy / p.cz) * fovScale;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
+    if (strokeStyle) { ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth || 1.5; ctx.stroke(); }
+}
+
+function drawLimb3D(ax, ay, az, bx, by, bz, width, color, camX, camY, camZ, fwd, rgt, up, fovScale) {
+    const p1 = projectPoint(ax, ay, az, camX, camY, camZ, fwd, rgt, up, fovScale);
+    const p2 = projectPoint(bx, by, bz, camX, camY, camZ, fwd, rgt, up, fovScale);
+    if (!p1 || !p2) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(3, width * ((p1.scale + p2.scale) * 0.5));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+}
+
+// --- BUCLE PRINCIPAL ---
+let lastTime = performance.now();
+
+function update(dt) {
+    if (st.diveCd > 0) st.diveCd -= dt;
+    if (st.animTimer > 0) st.animTimer -= dt;
+
+    const fwdX = -Math.sin(st.yaw), fwdZ = -Math.cos(st.yaw);
+    const rgtX = Math.cos(st.yaw), rgtZ = -Math.sin(st.yaw);
+
+    let wx = 0, wz = 0;
+    if (keys['KeyW']) { wx += fwdX; wz += fwdZ; }
+    if (keys['KeyS']) { wx -= fwdX; wz -= fwdZ; }
+    if (keys['KeyD']) { wx += rgtX; wz += rgtZ; }
+    if (keys['KeyA']) { wx -= rgtX; wz -= rgtZ; }
+    const mLen = Math.hypot(wx, wz);
+    const isMoving = mLen > 0;
+    if (isMoving) { wx /= mLen; wz /= mLen; }
+
+    // Actualizar inclinación visual (Tilts en el aire)
+    const { tx, tz } = getAirTilt();
+    st.tiltX += (tx - st.tiltX) * Math.min(1, 14 * dt);
+    st.tiltZ += (tz - st.tiltZ) * Math.min(1, 14 * dt);
+
+    const tiltEl = document.getElementById('tilt-txt');
+    if (st.onGround) {
+        tiltEl.innerText = 'EN SUELO';
+        tiltEl.style.color = '#94a3b8';
+    } else if (tx === 0 && tz === 0) {
+        tiltEl.innerText = 'NEUTRO';
+        tiltEl.style.color = '#facc15';
+    } else {
+        const parts = [];
+        if (tz > 0) parts.push('W (Picado)');
+        if (tz < 0) parts.push('S (Fondo)');
+        if (tx < 0) parts.push('A (Izq)');
+        if (tx > 0) parts.push('D (Der)');
+        tiltEl.innerText = parts.join(' + ');
+        tiltEl.style.color = '#38bdf8';
+    }
+
+    const spd = 11.5;
+
+    if (curStyle.id === 'admin') {
+        st.vx = wx * spd * 1.3;
+        st.vz = wz * spd * 1.3;
+        st.vy = 0;
+        if (keys['Space']) st.vy = 13;
+        if (keys['ControlLeft']) st.vy = -13;
+        st.onGround = (st.y <= 0.05);
+    } else if (st.diving) {
+        st.diveTimer -= dt;
+        st.diveAngle += 16 * dt;
+        st.vy += -25 * dt;
+        if (st.diveTimer <= 0) st.diving = false;
+    } else if (st.onGround) {
+        st.vx = wx * spd;
+        st.vz = wz * spd;
+
+        // TSH carga su Super Spike corriendo con W
+        if (curStyle.id === 'tsh') {
+            if (keys['KeyW'] && isMoving) st.tshCharge = Math.min(100, st.tshCharge + 45 * dt);
+            else st.tshCharge = Math.max(0, st.tshCharge - 20 * dt);
+            updateTSH();
+        }
+    } else {
+        // Inercia fija al saltar
+        st.vx = st.lockVx;
+        st.vz = st.lockVz;
+        st.vy += -30 * dt;
+    }
+
+    st.x += st.vx * dt;
+    st.y += st.vy * dt;
+    st.z += st.vz * dt;
+
+    if (st.y <= 0) {
+        st.y = 0;
+        st.vy = 0;
+        st.onGround = true;
+    }
+
+    st.x = Math.max(-24, Math.min(24, st.x));
+    st.z = Math.max(-24, Math.min(24, st.z));
+
+    if (st.sanuSpin > 0) {
+        const s = 18 * dt;
+        st.facingYaw += s;
+        st.sanuSpin -= s;
+    } else if (!st.diving) {
+        if (st.shiftLock) {
+            st.facingYaw = st.yaw;
+        } else if (isMoving && st.onGround) {
+            st.facingYaw = Math.atan2(-wx, -wz);
+        }
+    }
+
+    if (isMoving && st.onGround) st.runCycle += dt * 14;
+    else st.runCycle += dt * 3;
+
+    if (st.hbTimer > 0) {
+        st.hbTimer -= dt;
+        checkHit();
+    } else if (st.diving) {
+        checkHit();
+    }
+
+    // Física del balón
+    st.bvy += st.bGrav * dt;
+    st.bvx += st.bCurveX * dt;
+    st.bvz += st.bCurveZ * dt;
+
+    if (st.bBoomerang) {
+        const bx = st.x - st.bx, bz = st.z - st.bz;
+        const bLen = Math.hypot(bx, bz);
+        if (bLen > 1) {
+            st.bvx += (bx / bLen) * 32 * dt;
+            st.bvz += (bz / bLen) * 32 * dt;
+        }
+    }
+
+    st.bx += st.bvx * dt;
+    st.by += st.bvy * dt;
+    st.bz += st.bvz * dt;
+
+    const ballR = 0.52;
+    if (st.by <= ballR) {
+        st.by = ballR;
+        st.bvy = Math.abs(st.bvy) * 0.72;
+        st.bvx *= 0.85;
+        st.bvz *= 0.85;
+        st.bCurveX = 0; st.bCurveZ = 0;
+        st.bBoomerang = false;
+        st.bGrav = -18;
+        if (st.bvy < 1.5) st.bvy = 0;
+    }
+
+    if (Math.abs(st.bx) > 24) { st.bx = Math.sign(st.bx) * 24; st.bvx *= -0.75; }
+    if (Math.abs(st.bz) > 24) { st.bz = Math.sign(st.bz) * 24; st.bvz *= -0.75; }
+
+    // Red en Z = 0, altura 4.5
+    if (Math.abs(st.bz) < ballR + 0.12 && st.by <= 4.5 + ballR && Math.abs(st.bx) <= 9.3) {
+        st.bz = Math.sign(st.bz) * (ballR + 0.14);
+        st.bvz *= -0.5;
+    }
+
+    // Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+        else {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.z += p.vz * dt;
+        }
+    }
+}
+
+function render() {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const fovScale = canvas.height * 0.78;
+    const rgtX = Math.cos(st.yaw), rgtZ = -Math.sin(st.yaw);
+
+    // Punto objetivo de cámara (sobre el hombro en Shift-Lock)
+    const targetX = st.x + (st.shiftLock ? rgtX * 1.15 : 0);
+    const targetY = st.y + 2.1;
+    const targetZ = st.z + (st.shiftLock ? rgtZ * 1.15 : 0);
+
+    const camX = targetX + Math.sin(st.yaw) * Math.cos(st.pitch) * st.camDist;
+    const camY = Math.max(0.6, targetY + Math.sin(st.pitch) * st.camDist);
+    const camZ = targetZ + Math.cos(st.yaw) * Math.cos(st.pitch) * st.camDist;
+
+    // Base ortonormal de cámara (LookAt)
+    let fx = targetX - camX, fy = targetY - camY, fz = targetZ - camZ;
+    const fLen = Math.hypot(fx, fy, fz) || 1;
+    const fwd = { x: fx / fLen, y: fy / fLen, z: fz / fLen };
+
+    let rx = -fwd.z, ry = 0, rz = fwd.x;
+    const rLen = Math.hypot(rx, rz) || 1;
+    const rgt = { x: rx / rLen, y: 0, z: rz / rLen };
+
+    const up = {
+        x: rgt.y * fwd.z - rgt.z * fwd.y,
+        y: rgt.z * fwd.x - rgt.x * fwd.z,
+        z: rgt.x * fwd.y - rgt.y * fwd.x
+    };
+
+    // 1. Suelo exterior subdividido (evita cualquier recorte o parpadeo)
+    for (let gx = -36; gx < 36; gx += 12) {
+        for (let gz = -36; gz < 36; gz += 12) {
+            clipAndDrawPoly(
+                [[gx, 0, gz], [gx + 12, 0, gz], [gx + 12, 0, gz + 12], [gx, 0, gz + 12]],
+                '#1e293b', null, 0, camX, camY, camZ, fwd, rgt, up, fovScale
+            );
+        }
+    }
+
+    // 2. Cancha azul subdividida en franjas
+    for (let cz = -18; cz < 18; cz += 6) {
+        clipAndDrawPoly(
+            [[-9, 0.02, cz], [9, 0.02, cz], [9, 0.02, cz + 6], [-9, 0.02, cz + 6]],
+            '#0284c7', 'rgba(255,255,255,0.2)', 1, camX, camY, camZ, fwd, rgt, up, fovScale
+        );
+    }
+
+    // 3. Líneas blancas de la cancha
+    const lines = [
+        [[-9, 0.04, 18], [9, 0.04, 18]],
+        [[-9, 0.04, -18], [9, 0.04, -18]],
+        [[-9, 0.04, -18], [-9, 0.04, 18]],
+        [[9, 0.04, -18], [9, 0.04, 18]],
+        [[-9, 0.04, 6], [9, 0.04, 6]],
+        [[-9, 0.04, -6], [9, 0.04, -6]],
+        [[-9, 0.04, 0], [9, 0.04, 0]]
+    ];
+    lines.forEach(seg => {
+        const a = seg[0], b = seg[1];
+        clipAndDrawPoly(
+            [[a[0]-0.1, a[1], a[2]-0.1], [b[0]+0.1, b[1], b[2]-0.1], [b[0]+0.1, b[1], b[2]+0.1], [a[0]-0.1, a[1], a[2]+0.1]],
+            '#ffffff', null, 0, camX, camY, camZ, fwd, rgt, up, fovScale
+        );
+    });
+
+    // 4. Red de voleibol
+    clipAndDrawPoly(
+        [[-9.3, 2.8, 0], [9.3, 2.8, 0], [9.3, 4.5, 0], [-9.3, 4.5, 0]],
+        'rgba(255,255,255,0.25)', '#ffffff', 2, camX, camY, camZ, fwd, rgt, up, fovScale
+    );
+    drawLimb3D(-9.4, 0, 0, -9.4, 4.8, 0, 0.25, '#94a3b8', camX, camY, camZ, fwd, rgt, up, fovScale);
+    drawLimb3D(9.4, 0, 0, 9.4, 4.8, 0, 0.25, '#94a3b8', camX, camY, camZ, fwd, rgt, up, fovScale);
+
+    // 5. Sombra del balón y del jugador
+    const bShad = projectPoint(st.bx, 0.05, st.bz, camX, camY, camZ, fwd, rgt, up, fovScale);
+    if (bShad) {
+        const r = Math.max(4, (0.65 - Math.min(0.4, st.by * 0.02)) * bShad.scale);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.beginPath(); ctx.ellipse(bShad.x, bShad.y, r, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    const pShad = projectPoint(st.x, 0.05, st.z, camX, camY, camZ, fwd, rgt, up, fovScale);
+    if (pShad) {
+        const r = Math.max(6, 0.75 * pShad.scale);
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath(); ctx.ellipse(pShad.x, pShad.y, r, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 6. Ordenar Jugador vs Balón por profundidad (Z-sort)
+    const pProj = projectPoint(st.x, st.y + 1.3, st.z, camX, camY, camZ, fwd, rgt, up, fovScale);
+    const bProj = projectPoint(st.bx, st.by, st.bz, camX, camY, camZ, fwd, rgt, up, fovScale);
+
+    const drawBall = () => {
+        if (!bProj) return;
+        const rad = Math.max(5, 0.52 * bProj.scale);
+        ctx.fillStyle = '#facc15';
+        ctx.strokeStyle = '#854d0e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bProj.x, bProj.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    };
+
+    const drawPlayer = () => {
+        if (!pProj) return;
+        const pFwdX = -Math.sin(st.facingYaw), pFwdZ = -Math.cos(st.facingYaw);
+        const pRgtX = Math.cos(st.facingYaw), pRgtZ = -Math.sin(st.facingYaw);
+
+        // Inclinación por Tilt en el aire o Dive
+        let leanFwd = st.diving ? 1.1 : st.tiltZ * 0.45;
+        let leanSide = st.tiltX * 0.45;
+
+        const hipX = st.x, hipY = st.y + 0.9, hipZ = st.z;
+        const shldX = hipX + (pFwdX * leanFwd + pRgtX * leanSide);
+        const shldY = hipY + (st.diving ? 0.25 : 1.05);
+        const shldZ = hipZ + (pFwdZ * leanFwd + pRgtZ * leanSide);
+
+        // Aura Kazana o TSH 100%
+        if ((curStyle.id === 'kazana' && st.kazanaReady) || (curStyle.id === 'tsh' && st.tshCharge >= 100)) {
+            const auraCol = curStyle.id === 'kazana' ? 'rgba(56, 189, 248, 0.4)' : 'rgba(192, 132, 252, 0.45)';
+            ctx.strokeStyle = auraCol;
+            ctx.lineWidth = Math.max(4, 0.25 * pProj.scale);
+            ctx.beginPath();
+            ctx.arc(pProj.x, pProj.y, Math.max(14, 1.2 * pProj.scale), 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Visualizador de hitbox de 0.5s
+        if (st.hbTimer > 0) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(pProj.x, pProj.y, curStyle.hitbox * pProj.scale, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Piernas
+        const legSwing = st.onGround ? Math.sin(st.runCycle) * 0.35 : 0.25;
+        drawLimb3D(hipX + pRgtX * 0.24, hipY, hipZ + pRgtZ * 0.24,
+                   hipX + pRgtX * 0.24 + pFwdX * legSwing, st.y + 0.05, hipZ + pRgtZ * 0.24 + pFwdZ * legSwing,
+                   0.28, '#334155', camX, camY, camZ, fwd, rgt, up, fovScale);
+        drawLimb3D(hipX - pRgtX * 0.24, hipY, hipZ - pRgtZ * 0.24,
+                   hipX - pRgtX * 0.24 - pFwdX * legSwing, st.y + 0.05, hipZ - pRgtZ * 0.24 - pFwdZ * legSwing,
+                   0.28, '#334155', camX, camY, camZ, fwd, rgt, up, fovScale);
+
+        // Torso
+        drawLimb3D(hipX, hipY, hipZ, shldX, shldY, shldZ, 0.78, curStyle.color, camX, camY, camZ, fwd, rgt, up, fovScale);
+
+        // Brazos animados según acción
+        let rHandX = shldX + pRgtX * 0.55 - pFwdX * legSwing;
+        let rHandY = shldY - 0.75;
+        let rHandZ = shldZ + pRgtZ * 0.55 - pFwdZ * legSwing;
+
+        let lHandX = shldX - pRgtX * 0.55 + pFwdX * legSwing;
+        let lHandY = shldY - 0.75;
+        let lHandZ = shldZ - pRgtZ * 0.55 + pFwdZ * legSwing;
+
+        if (st.animTimer > 0) {
+            if (st.hbType === 'set' || st.hbType === 'jumpset' || st.hbType === 'block') {
+                rHandX = shldX + pRgtX * 0.25 + pFwdX * 0.3; rHandY = shldY + 0.85; rHandZ = shldZ + pRgtZ * 0.25 + pFwdZ * 0.3;
+                lHandX = shldX - pRgtX * 0.25 + pFwdX * 0.3; lHandY = shldY + 0.85; lHandZ = shldZ - pRgtZ * 0.25 + pFwdZ * 0.3;
+            } else if (st.hbType === 'bump') {
+                rHandX = shldX + pFwdX * 0.85; rHandY = shldY - 0.25; rHandZ = shldZ + pFwdZ * 0.85;
+                lHandX = shldX + pFwdX * 0.85; lHandY = shldY - 0.25; lHandZ = shldZ + pFwdZ * 0.85;
+            } else if (curStyle.id === 'hidari') {
+                lHandX = shldX - pRgtX * 0.35 + pFwdX * 0.8; lHandY = shldY + 0.75; lHandZ = shldZ - pRgtZ * 0.35 + pFwdZ * 0.8;
+            } else {
+                rHandX = shldX + pRgtX * 0.35 + pFwdX * 0.8; rHandY = shldY + 0.75; rHandZ = shldZ + pRgtZ * 0.35 + pFwdZ * 0.8;
+            }
+        }
+
+        drawLimb3D(shldX + pRgtX * 0.45, shldY, shldZ + pRgtZ * 0.45, rHandX, rHandY, rHandZ, 0.24, '#fde68a', camX, camY, camZ, fwd, rgt, up, fovScale);
+        drawLimb3D(shldX - pRgtX * 0.45, shldY, shldZ - pRgtZ * 0.45, lHandX, lHandY, lHandZ, 0.24, '#fde68a', camX, camY, camZ, fwd, rgt, up, fovScale);
+
+        // Cabeza
+        const headProj = projectPoint(shldX + pFwdX * leanFwd * 0.2, shldY + 0.42, shldZ + pFwdZ * leanFwd * 0.2, camX, camY, camZ, fwd, rgt, up, fovScale);
+        if (headProj) {
+            const hr = Math.max(5, 0.34 * headProj.scale);
+            ctx.fillStyle = '#fde68a';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(headProj.x, headProj.y, hr, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+    };
+
+    if (pProj && bProj && pProj.z < bProj.z) {
+        drawBall();
+        drawPlayer();
+    } else {
+        drawPlayer();
+        drawBall();
+    }
+
+    // 7. Partículas / Chispas
+    particles.forEach(p => {
+        const pp = projectPoint(p.x, p.y, p.z, camX, camY, camZ, fwd, rgt, up, fovScale);
+        if (!pp) return;
+        const r = Math.max(2, p.size * pp.scale * (p.life / p.maxLife));
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    update(dt);
+    render();
+}
+
+// --- UI Y MENÚ ---
+let bTimer;
+function showBanner(txt, col) {
+    const el = document.getElementById('banner');
+    el.innerText = txt; el.style.color = col; el.style.opacity = 1;
+    clearTimeout(bTimer);
+    bTimer = setTimeout(() => el.style.opacity = 0, 1200);
+}
+
+function updateTSH() {
+    const p = Math.round(st.tshCharge);
+    document.getElementById('charge-fill').style.width = p + '%';
+    document.getElementById('charge-label').innerText = p >= 100 ? '¡SUPER SPIKE TSH LISTO (CLIC IZQ EN AIRE)!' : `CARGA SUPER SPIKE TSH: ${p}%`;
+}
+
+function selectStyle(key) {
+    curStyle = STYLES[key];
+    st.kazanaReady = false;
+    st.tshCharge = 0;
+
+    document.getElementById('hud-tag').innerText = curStyle.tag;
+    document.getElementById('hud-name').innerText = curStyle.name;
+    document.getElementById('hud-desc').innerText = curStyle.desc;
+
+    const isTSH = (key === 'tsh');
+    document.getElementById('charge-wrap').style.display = isTSH ? 'block' : 'none';
+    document.getElementById('charge-label').style.display = isTSH ? 'block' : 'none';
+    updateTSH();
+
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('c-' + key).classList.add('selected');
+}
+
+const grid = document.getElementById('grid');
+Object.values(STYLES).forEach((s, i) => {
+    const d = document.createElement('div');
+    d.className = 'card'; d.id = 'c-' + s.id;
+    d.innerHTML = `<div class="card-head"><span style="color:${s.color}">${i+1}. ${s.name}</span><span style="font-size:10px;background:#334155;padding:2px 6px;border-radius:4px;">${s.tag}</span></div><div class="card-desc">${s.desc}</div>`;
+    d.onclick = () => selectStyle(s.id);
+    grid.appendChild(d);
+});
+selectStyle('jinko');
+
+document.getElementById('btn-play').onclick = () => {
+    document.getElementById('menu').style.display = 'none';
+    canvas.requestPointerLock();
+};
+document.getElementById('btn-open-menu').onclick = () => {
+    document.exitPointerLock();
+    document.getElementById('menu').style.display = 'flex';
+};
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
